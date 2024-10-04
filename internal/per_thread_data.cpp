@@ -193,6 +193,22 @@ static void WINAPI destroy_fls(void* const pfd) throw()
         return;
     }
 
+    // If the process is shutting down, try to put the FLS value back. There's
+    // no point in deallocating it at this point, and it's quite possible that
+    // it will be recreated later anyway by a cleanup routine of one of the
+    // DLLs. Apart from the efficiency benefit, this makes process shutdown more
+    // robust in case it's unable to allocate memory (e.g. due to
+    // ERROR_POSSIBLE_DEADLOCK).
+    //
+    // In debug, FLS is destroyed via __acrt_uninitialize ->
+    // __acrt_uninitialize_ptd, so we can't keep using it.
+    #ifndef _DEBUG
+    if (RtlDllShutdownInProgress() && __acrt_FlsSetValue(__acrt_flsindex, pfd))
+    {
+        return;
+    }
+    #endif
+
     destroy_ptd_array(static_cast<__acrt_ptd*>(pfd));
     _free_crt(pfd);
 }
